@@ -16,6 +16,7 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_PERCENT,
     UNIT_PARTS_PER_MILLION,
+    UNIT_MINUTE,
 )
 
 
@@ -24,11 +25,11 @@ AUTO_LOAD = ["sensor","binary_sensor","text_sensor","number","button","select"]
 
 CONF_FAN_SPEED            = "fan_speed"
 CONF_FAN_SPEED_DEFAULT    = "fan_speed_default"
-CONF_TEMPERATURE_TARGET   = "temperature_target"  # same data as in climate attribute
+CONF_TEMPERATURE_TARGET   = "temperature_target"
 CONF_TEMPERATURE_OUTSIDE  = "temperature_outside"
 CONF_TEMPERATURE_INSIDE   = "temperature_inside"
 CONF_TEMPERATURE_OUTGOING = "temperature_outgoing"
-CONF_TEMPERATURE_INCOMING = "temperature_incoming" # same data as in climate attribute
+CONF_TEMPERATURE_INCOMING = "temperature_incoming"
 CONF_HUMIDITY_1           = "humidity_1"
 CONF_HUMIDITY_2           = "humidity_2"
 CONF_CO2                  = "co2"
@@ -46,7 +47,6 @@ CONF_FRONT_HEATING        = "front_heating"
 CONF_SUMMER_MODE          = "summer_mode"
 CONF_PROBLEM              = "problem"
 CONF_ERROR_RELAY          = "error_relay"
-CONF_EXTRA_FUNC           = "extra_func"
 CONF_HEAT_BYPASS          = "heat_bypass"
 CONF_SERVICE_RESET        = "service_reset"
 CONF_FAULT_CONDITION      = "fault_condition"
@@ -54,8 +54,9 @@ CONF_SWITCH_TYPE_SELECT   = "switch_type_select"
 CONF_FAN_SPEED_MAX        = "fan_speed_max"
 CONF_FAN_SPEED_MIN        = "fan_speed_min"
 CONF_SWITCH               = "switch"
+CONF_SWITCH_REMAINING     = "switch_remaining"
 
-# options for the switch type selector (also in vallox.cpp)
+# options for the switch type selector (also in vallox.h)
 SELECT_SWITCH_TYPE_BOOST     = "boost"
 SELECT_SWITCH_TYPE_FIREPLACE = "fireplace"
 
@@ -66,6 +67,9 @@ ICON_CALENDAR = "mdi:calendar-month"
 ICON_CALENDAR_ALERT = "mdi:calendar-alert"
 ICON_HEAT_WAVE = "mdi:heat-wave"
 ICON_CALENDAR_REFRESH = "mdi:calendar-refresh"
+ICON_FAN_CLOCK = "mdi:fan-clock"
+ICON_FAN_CHEVRON_UP = "mdi:fan-chevron-up"
+ICON_FAN_CHEVRON_DOWN = "mdi:fan-chevron-down"
 
 vallox_ns = cg.esphome_ns.namespace("vallox")
 ValloxVentilation = vallox_ns.class_("ValloxVentilation", climate.Climate, cg.Component)
@@ -150,6 +154,12 @@ CONFIG_SCHEMA = cv.All(
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_SWITCH_REMAINING): sensor.sensor_schema(
+                unit_of_measurement=UNIT_MINUTE,
+                icon=ICON_FAN_CLOCK,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
             cv.Optional(CONF_SWITCH_TYPE): text_sensor.text_sensor_schema(
             ),
             cv.Optional(CONF_FAULT_CONDITION): text_sensor.text_sensor_schema(
@@ -185,8 +195,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ERROR_RELAY): binary_sensor.binary_sensor_schema(
                 device_class=DEVICE_CLASS_PROBLEM,
             ),
-            cv.Optional(CONF_EXTRA_FUNC): binary_sensor.binary_sensor_schema(
-            ),
             cv.Optional(CONF_HEAT_BYPASS): number.number_schema(
               ValloxVentilationHeatBypassNum,
               device_class=DEVICE_CLASS_TEMPERATURE,
@@ -195,7 +203,7 @@ CONFIG_SCHEMA = cv.All(
               ValloxVentilationServiceResetBtn,
               entity_category=ENTITY_CATEGORY_CONFIG,
               icon=ICON_CALENDAR_REFRESH,
-            ), 
+            ),
             cv.Optional(CONF_SWITCH_TYPE_SELECT): select.select_schema(
               ValloxVentilationSwitchTypeSelectSel,
               entity_category=ENTITY_CATEGORY_CONFIG,
@@ -203,14 +211,16 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FAN_SPEED_MAX): number.number_schema(
               ValloxVentilationFanSpeedMaxNum,
               entity_category=ENTITY_CATEGORY_CONFIG,
+              icon=ICON_FAN_CHEVRON_UP,
             ),
             cv.Optional(CONF_FAN_SPEED_MIN): number.number_schema(
               ValloxVentilationFanSpeedMinNum,
               entity_category=ENTITY_CATEGORY_CONFIG,
+              icon=ICON_FAN_CHEVRON_DOWN,
             ),
             cv.Optional(CONF_SWITCH): button.button_schema(
               ValloxVentilationSwitchBtn,
-            ), 
+            ),
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)
@@ -259,6 +269,9 @@ async def to_code(config):
   if CONF_SERVICE_REMAINING in config:
     sens = await sensor.new_sensor(config[CONF_SERVICE_REMAINING])
     cg.add(var.set_service_remaining_sensor(sens))
+  if CONF_SWITCH_REMAINING in config:
+    sens = await sensor.new_sensor(config[CONF_SWITCH_REMAINING])
+    cg.add(var.set_switch_remaining_sensor(sens))
   if CONF_SWITCH_TYPE in config:
     sens = await text_sensor.new_text_sensor(config[CONF_SWITCH_TYPE])
     cg.add(var.set_switch_type_text_sensor(sens))
@@ -298,9 +311,6 @@ async def to_code(config):
   if CONF_ERROR_RELAY in config:
     sens = await binary_sensor.new_binary_sensor(config[CONF_ERROR_RELAY])
     cg.add(var.set_error_relay_binary_sensor(sens))
-  if CONF_EXTRA_FUNC in config:
-    sens = await binary_sensor.new_binary_sensor(config[CONF_EXTRA_FUNC])
-    cg.add(var.set_extra_func_binary_sensor(sens))
   if CONF_HEAT_BYPASS in config:
     num_heat_bypass_var = await number.new_number(
       config[CONF_HEAT_BYPASS],
